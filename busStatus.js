@@ -20,41 +20,35 @@ try {
 }
 
 
-function checkTimeTable() {
-  var useTimeConstriants = config.settings.use_time_constriants ||  false;
-
-  isItAValidTime(new Date(), useTimeConstriants)
-    .then(getSlDataFromApi)
-    .then(getTimeToNextBus)
-    .then(blinkTheBlink)
-    .catch(function(err) {
-      console.log(err.message.red);
+function checkInternet(cb) {
+    require('dns').lookup('google.com',function(err) {
+        if (err && err.code == "ENOTFOUND") {
+            cb(false);
+        } else {
+            cb(true);
+        }
     })
-    .then(setNewTimeout);
 }
 
-function getSlDataFromApi(indata) {
-  return request(getTimetableQueryObject());
-}
-
-function setNewTimeout() {
-  console.log('Setting tiemout ' + pollIntervall);
-  setTimeout(checkTimeTable, pollIntervall);
-}
-
-function isItAValidTime(currentTime, usingTimeSlots) {
-  return new Promise(function(resolve, reject) {
-    var theHour = currentTime.getHours();
-		var day = currentTime.getDay();
-    if (!usingTimeSlots || ((theHour >= 5 && theHour < 8) && (day > 0 && day < 6))) {
-      resolve(true);
+// example usage:
+checkInternet(function(isConnected) {
+    if (isConnected) {
+		 console.log("Connected!");
+         blink1.fadeToRGB(2000, 0, 255, 0);
     } else {
-			blinkPing();
-      pollIntervall = 5 * 60 * 1000;
-      reject(new Error('Not in valid time slot'));
+		 console.log("Not Connected!");
+         blink1.fadeToRGB(5000, 255, 76, 19);
     }
-  });
+});
+
+function checkTimeTable() {
+	
+	checkInternet();
+	setInterval(checkTimeTable,1500);
 }
+
+
+
 
 function blinkPing() {
 	blink1.fadeToRGB(100, 255, 0, 255, function(){
@@ -64,41 +58,7 @@ function blinkPing() {
 	});
 }
 
-function getTimetableQueryObject() {
-  var api_key = config.realtimedepatures.api_key;
-  var siteid = config.realtimedepatures.siteid;
-  var timewindow = config.realtimedepatures.timewindow;
 
-  return {
-    url: config.realtimedepatures.url,
-    qs: {
-      key: api_key,
-      siteid: siteid,
-      timewindow: timewindow
-    },
-    method: 'GET'
-  };
-}
-
-function getTimeToNextBus(reply) {
-  return new Promise(function(resolve, reject) {
-    var data = JSON.parse(reply.body);
-    var bus = _.find(data.ResponseData.Buses, function(ttEntry) {
-      return (ttEntry.JourneyDirection === 2);
-    });
-
-    if (bus && bus.DisplayTime) {
-			var expected = moment(bus.ExpectedDateTime);
-      var now = moment();
-      var diff = (expected - now) / 1000 / 60;
-      resolve(diff);
-    } else {
-      pollIntervall = 8 * 60 * 1000;
-      blink1.off();
-      reject(new Error('No busses in the given time slot'));
-    }
-  });
-}
 
 function blinkTheBlink(timeToNextBus) {
   console.log(timeToNextBus.toString().yellow);
